@@ -5,11 +5,11 @@
 #include "Alfredo_NoU3_encoder.h"
 class SwerveModule {
     public:
-        SwerveModule(NoU_Motor* drive, NoU_Servo* turn, Encoder* driveencoder, float angleoffset, float wrapendpoint, float gearRatio);
+        SwerveModule(NoU_Motor* drive, NoU_Servo* turn, Encoder* driveencoder, float angleoffset, float wrapendpoint,  float drivegearratio, float turngearratio);
         void driveModule(float targetAngle, float driveSpeed);
         void directDriveModule(float targetAngle, float driveSpeed);
         float getModuleAngle();
-        float getModuleSpeed();
+        float getModuleVelocity();
         SwerveModule getModule();
     private: 
         NoU_Motor *driveMotor;
@@ -17,6 +17,9 @@ class SwerveModule {
         Encoder *driveEncoder;
         float angleOffset;
         float wrapEndpoint;
-        float gearRatio;
+        float driveGearRatio;
+        float turnGearRatio;
+        float currentSpeed;
+        float currentAngle;
 };
 #endif
