@@ -1,0 +1,46 @@
+{
+  "name": "MiniSwerveLib",
+  "version": "0.0.1",
+  "description": "A swerve drive library for FRC MiniFRC 2026 on NoU3 (ESP32-S3)",
+  "keywords": [
+    "swerve",
+    "drive",
+    "robotics",
+    "frc",
+    "minifrc"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Stampede-10583/MiniFRC-2026"
+  },
+  "authors": [
+    {
+      "name": "Stampede Robotics",
+      "email": "team@stampede.com",
+      "url": "https://github.com/Stampede-10583"
+    }
+  ],
+  "license": "MIT",
+  "platforms": "espressif32",
+  "frameworks": "arduino",
+  "dependencies": [
+    {
+      "name": "PestoLink-Receive",
+      "owner": "alfredosystems",
+      "version": "~1.0.10"
+    },
+    {
+      "name": "Alfredo-NoU3",
+      "owner": "alfredosystems",
+      "version": "~1.0.12"
+    },
+    {
+      "name": "Adafruit seesaw Library",
+      "owner": "adafruit",
+      "version": "~1.7.9"
+    }
+  ],
+  "headers": [
+    "MiniSwerveLib.h"
+  ]
+}
