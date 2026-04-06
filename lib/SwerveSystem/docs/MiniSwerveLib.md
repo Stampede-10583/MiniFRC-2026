@@ -1,8 +1,8 @@
-# MiniSwerveLib Manual
+# SingleModuleTest Manual
 
 ## Overview
 
-`MiniSwerveLib` is the swerve drive library for the MiniFRC 2026 robot codebase. It provides three primary classes:
+`SingleModuleTest` is the swerve drive library for the MiniFRC 2026 robot codebase. It provides three primary classes:
 
 - `SwerveDrive` - robot-level swerve subsystem management
 - `SwerveModule` - one wheel module with drive motor, steering servo, and steering encoder
