@@ -9,8 +9,8 @@ class Adafruit_seesaw;
 class SwerveDrive
 {
 public:
-     /**
-      * Construct a swerve drive system and automatically configure the external encoder seesaw.
+    /**
+     * Construct a swerve drive system and automatically configure the external encoder seesaw.
      *
      * @param driveMotorPorts Drive motor controller ports in module order {FL, FR, BL, BR}.
      * @param driveMotorInversions Per-module drive motor inversion flags. Set so that it is CCW+ (forward) for all modules.
@@ -20,11 +20,15 @@ public:
      * @param turnServoInversions Per-module turn servo inversion flags. Set so that it is CCW+ for all modules.
      * @param turnServoGearRatios Per-module turn gear ratios.
      * @param servoConfig Array containing {servoMinPulse (corresponds to 0°), servoMaxPulse (corresponds to 180°)} PWM bounds for steering servos. Defaults to {540, 2300} which is a common range 9g servo.
-      * @param turnEncoderInversions Per-module turn encoder inversion flags. Set so that it is CCW+ for all modules.
-      * @param encoderSeesaw Initialized seesaw object used to read the external encoder GPIO pins.
-      * The drive assumes the seesaw interrupt line is wired to ESP GPIO 9.
+     * @param turnEncoderAndZeroSwitchPorts Per-module seesaw GPIO pin triplet containing {pinA, pinB, ClickPin} for the steering encoder and a switch that is triggered when the modue is at the home position. These are read directly from the external breakout board.
+     * @param turnEncoderHomePositions Per-module home position values for the steering encoder.
+     * @param turnEncoderInversions Per-module turn encoder inversion flags. Set so that it is CCW+ for all modules.
+     * @param encoderSeesaw Initialized seesaw object used to read the external encoder GPIO pins.
+     * The drive assumes the seesaw interrupt line is wired to ESP GPIO 9.
      * @param imuAngularScale Scale factor applied to IMU angular readings.
      * @param maxSpeed Maximum commanded linear speed.
+     * @param brakeMode True to enable drive motor braking, false for coast.
+     * @param interruptPin MCU pin wired to the seesaw interrupt output. This will be 8 or 9 on NoU3. Leave empty to disable interrupt (passes -1 internally).
      */
     SwerveDrive(uint8_t driveMotorPorts[4],
                 std::array<bool, 4> driveMotorInversions = {false, false, false, false},
@@ -33,10 +37,14 @@ public:
                 std::array<bool, 4> turnServoInversions = {false, false, false, false},
                 std::array<float, 4> turnServoGearRatios = {1, 1, 1, 1},
                 std::array<uint16_t, 2> servoConfig = {540, 2300},
+                std::array<uint8_t, 4> turnEncoderAndZeroSwitchPorts = {0, 1, 2, 3},
+                std::array<int32_t, 4> turnEncoderHomePositions = {0, 0, 0, 0},
                 std::array<bool, 4> turnEncoderInversions = {false, false, false, false},
-             Adafruit_seesaw *encoderSeesaw,
+                Adafruit_seesaw *encoderSeesaw,
                 float imuAngularScale,
-                float maxSpeed);
+                float maxSpeed, 
+                bool brakeMode = false, 
+                uint8_t interruptPin = -1);
     /**
      * Calculate target velocities for the robot based on joystick inputs.
      *
@@ -115,7 +123,19 @@ public:
      * Run periodic swerve subsystem updates.
      */
     void swerveDrivePeriodic();
-
+    /**
+     * Configure the seesaw for encoder operation.
+     *
+     * @param seesaw Pointer to the Adafruit_seesaw instance.
+     * @param interruptPin MCU pin wired to the seesaw interrupt output. This will be 8 or 9 on NoU3. Pass a negative value to disable the interrupt.
+     */
+    static void configureSeesaw(Adafruit_seesaw *seesaw, int8_t interruptPin);
+    /**
+     * Configure the MCU interrupt pin connected to seesaw INT.
+     *
+     * @param interruptPin MCU pin wired to the seesaw interrupt output. Pass a negative value to disable.
+     */
+    static void configureSeesawInterruptPin(int8_t interruptPin);
     /**
      * Get a pointer to a module by index.
      *
@@ -132,7 +152,6 @@ public:
     SwerveDrive getDrive();
 
 private:
-    bool encoderConfigured;
     SwerveModule modules[4];
     float imuAngularScale;
     float maxSpeed;
@@ -140,22 +159,23 @@ private:
 class SwerveModule
 {
 public:
-     /**
-      * Construct a swerve module controller.
+    /**
+     * Construct a swerve module controller.
      *
-      * @param driveServoPort Port for the drive motor controller.
+     * @param driveServoPort Port for the drive motor controller.
      * @param driveMotorInversion True to invert the drive motor direction.
-      * @param turnServoPort Port for the steering servo.
+     * @param turnServoPort Port for the steering servo.
      * @param turnServoInversion True to invert steering direction.
-      * @param angleoffset Steering zero offset in degrees.
-      * @param drivegearratio Drive gear ratio from motor to wheel.
-      * @param turngearratio Steering gear ratio from servo to module.
-     * @param encoderGearRatio Encoder gear ratio for position feedback.
+     * @param angleoffset Steering zero offset in degrees.
+     * @param drivegearratio Drive gear ratio from motor to wheel.
+     * @param turngearratio Steering gear ratio from servo to module.
+     * @param encodergearratio Encoder gear ratio for position feedback.
      * @param servoConfig Array containing {servoMinPulse (corresponds to 0°), servoMaxPulse (corresponds to 180°)} PWM bounds for steering servos. Defaults to {540, 2300} which is a common range 9g servo.
-      * @param turnEncoderPins Seesaw GPIO pin pair containing {pinA, pinB} for the steering encoder.
-      * These are read directly from the external breakout board.
-      * @param turnEncoderInversions Per-module turn encoder inversion flags. Set so that it is CCW+ for all modules.
-      * @param brakeMode True to enable drive motor braking.
+     * @param turnEncoderPins Seesaw GPIO pin pair containing {pinA, pinB, ClickPin} for the steering encoder and a switch that is triggered when the modue is at the home position.
+     * These are read directly from the external breakout board.
+     * @param turnEncoderHomePosition The encoder position corresponding to the home position in degrees. This is used to zero the encoder during initialization.
+     * @param turnEncoderInversions Per-module turn encoder inversion flags. Set so that it is CCW+ for all modules.
+     * @param brakeMode True to enable drive motor braking.
      */
     SwerveModule(uint8_t driveServoPort,
                  bool driveMotorInversion = false,
@@ -164,12 +184,14 @@ public:
                  float angleoffset,
                  float drivegearratio,
                  float turngearratio,
-                 float encoderGearRatio,
+                 float encodergearratio,
                  std::array<uint16_t, 2> servoConfig = {540, 2300},
-                 std::array<uint8_t, 2> turnEncoderPins,
+                 uint8_t turnEncoderAndZeroSwitchPort,
+                 int32_t turnEncoderHomePosition,
                  bool turnEncoderInversion = false,
                  bool brakeMode = false);
-
+    
+    void initializeModule();
     /**
      * Drive the module using a robot-relative target angle. Automatically chooses the shortest path to the target angle and reverses drive direction if beneficial.
      *
@@ -208,7 +230,7 @@ public:
     void setBrakeMode(bool brake);
     /**
      * Update the module state. Should be called periodically to update the module's internal state.
-    */
+     */
     void updateModuleState();
     /**
      * Get direct access to the drive motor object.
@@ -245,38 +267,25 @@ private:
     float turnGearRatio;
     float encoderGearRatio;
     float currentSpeed;
-    int32_t currentAngle;
+    uint8_t encoderPinA, encoderPinB, zeroSwitchPin;
+    int32_t currentAngle, encoderHomePosition;
     bool turnInversion;
 };
 class QuicEncoder
 {
 public:
-        /**
-         * Configure the shared seesaw instance used for GPIO reads.
-         *
-         * @param seesaw Pointer to an initialized seesaw object. Pass nullptr to disable seesaw-backed reads.
-         */
-    static void configureSeesaw(Adafruit_seesaw *seesaw);
-
     /**
-         * Configure the MCU interrupt pin connected to seesaw INT.
-         *
-         * @param interruptPin MCU pin wired to the seesaw interrupt output. Pass a negative value to disable.
-         */
-    static void configureSeesawInterruptPin(int8_t interruptPin);
-
-        /**
-         * Construct a quadrature encoder reader that pulls pin state from the configured input source.
-         *
-         * @param pinA The first encoder channel. In seesaw mode, this is the seesaw GPIO pin number.
-         * @param pinB The second encoder channel. In seesaw mode, this is the seesaw GPIO pin number.
-         * @param inverted Whether to invert the encoder direction. Set so that it is CCW+ for correct modules.
-         */
+     * Construct a quadrature encoder reader that pulls pin state from the configured input source.
+     *
+     * @param pinA The first encoder channel. In seesaw mode, this is the seesaw GPIO pin number.
+     * @param pinB The second encoder channel. In seesaw mode, this is the seesaw GPIO pin number.
+     * @param inverted Whether to invert the encoder direction. Set so that it is CCW+ for correct modules.
+     */
     QuicEncoder(uint8_t pinA, uint8_t pinB, bool inverted = false);
     /**
-         * Initialize the encoder. The encoder uses the globally configured seesaw and interrupt line
-         * when those are set before construction.
-         */
+     * Initialize the encoder. The encoder uses the globally configured seesaw and interrupt line
+     * when those are set before construction.
+     */
     void initialize();
     /**
      * Get the current position of the encoder.
@@ -295,6 +304,7 @@ public:
      * This is the same decode path used for direct pins and seesaw-backed pins.
      */
     void update();
+
 private:
     uint8_t pinA, pinB;
     bool inverted;
