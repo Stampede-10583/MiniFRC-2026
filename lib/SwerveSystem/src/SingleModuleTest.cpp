@@ -3,31 +3,27 @@
 #include "Arduino.h"
 #include "Alfredo_NoU3.h"
 #include "Alfredo_NoU3_encoder.h"
+#include <PestoLink-Receive.h>
+using namespace std;
 //#include "Adafruit_seesaw.h"
 //constexpr std::array<std::array<uint8_t, 3>, 4> kSeesawEncoderAndZeroSwitchPins = {{{8, 9, 12}, {10, 11, 14}, {2, 3, 17}, {4, 5, 9}}};
 
 
 SwerveModule::SwerveModule(uint8_t driveMotorPort,
-                 bool driveMotorInversion = false,
-                 uint8_t turnMotorPort,
-                 bool turnMotorInversion = false,
-                 float angleoffset,
+                 bool driveMotorInversion,
+                 NoU_Motor* turnMotor,
+                 bool turnMotorInversion,
                  float drivegearratio,
                  float turngearratio,
-                 float encodergearratio,
                  UniversalEncoder* turnEncoder,
-                 float turnEncoderHomePosition,
-                 bool brakeMode = false,
-                 bool driveinversion)
-    : driveMotor(NoU_Motor(driveMotorPort)), turnMotor(NoU_Motor(turnMotorPort)), turnEncoder(turnEncoder)
+                 bool brakeMode)
+    : driveMotor(NoU_Motor(driveMotorPort)), turnMotor(turnMotor), turnEncoder(turnEncoder)
 {
-    driveInversion = driveinversion;
     driveGearRatio = drivegearratio;
     turnGearRatio = turngearratio;
 
     turnInversion = turnMotorInversion;
-    encoderHomePosition = turnEncoderHomePosition;
-
+    driveInversion = driveMotorInversion;
     driveMotor.setInverted(driveMotorInversion);
     driveMotor.setBrakeMode(brakeMode);
 }
@@ -41,19 +37,23 @@ namespace
         //turnEncoder->initialize();
         while (!turnEncoder->zeroSwitch()) // wait for zero switch to be triggered
         {
-            turnMotor.set(.1); // optionally apply a small turn output to help the module find the zero switch if it's not already there
+            turnMotor->set(.1); // optionally apply a small turn output to help the module find the zero switch if it's not already there
         }
-        turnEncoder->setPosition(encoderHomePosition);
+        turnEncoder->setPosition(turnEncoder->homePosition);
     }
     void SwerveModule::driveModule(float targetAngle, float driveSpeed)
     {
         bool instantialDriveInversion = false;
+        //determine the inversion here
+        // also add the position PID for the motor or some crap
+        turnMotor->set(targetAngle);
         float instantialDriveSpeed = instantialDriveInversion? driveSpeed : -driveSpeed;
         driveMotor.set(driveInversion ? instantialDriveSpeed : -instantialDriveSpeed); // do things and crap but field oriented!
     }
 
     void SwerveModule::directDriveModule(float targetAngle, float driveVelocity)
     {
+        turnMotor->set(targetAngle);
         driveMotor.set(driveInversion ? driveVelocity : -driveVelocity);
     }
 
@@ -75,7 +75,13 @@ namespace
     void SwerveModule::updateModuleState()
     {
         turnEncoder->update();
-        currentAngle = (float)((int32_t)turnEncoder->getPosition() % (int32_t)(encoderGearRatio * 360)); // wrap encoder position to 0-360 based on gear ratio
+        if (!(turnEncoder->getPosition()<= 360 && turnEncoder->getPosition() >=0)) {
+            Serial.println("Encoder angle invalid");
+            while (true) {
+                delay(1);
+            };
+        }
+        currentAngle = turnEncoder->getPosition();
         // do this in order to get velo currentSpeed = driveMotor.getPosition() / driveGearRatio;     // convert motor encoder velocity to wheel speed
     }
     NoU_Motor *SwerveModule::getDriveMotor()
@@ -85,19 +91,26 @@ namespace
 
     NoU_Motor *SwerveModule::getTurnMotor()
     {
-        return &turnMotor;
+        return turnMotor;
     }
-    // QuicEncoder *SwerveModule::getTurnEncoder()
-    // {
-    //     return &turnEncoder;
-    // }
+    UniversalEncoder *SwerveModule::getTurnEncoder()
+    {
+        return turnEncoder;
+    }
     SwerveModule SwerveModule::getModule()
     {
         return *this;
     }
-    UniversalEncoder::UniversalEncoder(std::function<float()> getPositionFunc, std::function<void(float)> setPositionFunc, std::function<void()> updateFunc, std::function<bool()> zeroSwitchSupplier)
-        : getPosition(getPositionFunc), setPosition(setPositionFunc), update(updateFunc), zeroSwitch(zeroSwitchSupplier)
+    UniversalEncoder::UniversalEncoder(bool isabsolute, std::function<float()> getPositionFunc,  std::function<void()> updateFunc, std::function<void(float)> setPositionFunc, std::function<bool()> zeroSwitchSupplier, float homePosition)
+        : getPosition(getPositionFunc), setPosition(setPositionFunc), update(updateFunc), zeroSwitch(zeroSwitchSupplier), homePosition(homePosition)
     {
+        (void)isabsolute;
+        isAbsolute = false;
+    }
+    UniversalEncoder::UniversalEncoder(std::function<float()> getPositionFunc, std::function<void()> updateFunc)
+        : getPosition(getPositionFunc), update(updateFunc)
+    {
+        isAbsolute = true;
     }
     // QuicEncoder::QuicEncoder(uint8_t pinA, uint8_t pinB, bool inverted)
     //     : pinA(pinA), pinB(pinB), inverted(inverted), position(0), prevState(0)

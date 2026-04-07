@@ -6,42 +6,63 @@
 #include <functional>
 #include "Alfredo_NoU3.h"
 #include "Alfredo_NoU3_encoder.h"
-class Adafruit_seesaw;
+//class Adafruit_seesaw;
+class UniversalEncoder
+{
+public:
+    /**
+     * Constructor for RELATIVE ENCODERS. Note that all Lambdas that deal with angles should take/return in a float of angles in degrees with CCW+. All gear ratios, inversions, and CPR conversions should be done by YOU before returning a value. See the docs for an example for a NoU3 Encoder
+     *    @param getPositionFunc Function to get the current encoder position. as a float in degrees. This should account for any necessary
+     *  gear ratios, offsets, and inversions to return the actual module angle.
+     *    @param setPositionFunc Function to set the encoder position. This is used to zero the encoder during initialization by setting the
+     *  current position to the known home position. It should accept a float in degrees and convert it to the appropriate units for the
+     * underlying encoder implementation.
+     *    @param updateFunc Function to update the encoder state. This is called periodically to update the internal state of the encoder. Do nothing if unnecesary
+     *    @param zeroSwitchSupplier Function that returns true when the encoder's zero switch is triggered. This is used during initialization
+     *  to find the zero position of the module. It should return a boolean indicating whether the zero switch is currently active.
+     *    @param homePosition The angle in degrees CCW+ (see docs for info) of the MODULE when the zero switch is closed.
+     */
+    UniversalEncoder(bool isAbsolute, std::function<float()> getPositionFunc, std::function<void()> updateFunc, std::function<void(float)> setPositionFunc, std::function<bool()> zeroSwitchSupplier, float homePosition);
+    /**
+     * Constructor for ABSOLUTE ENCODERS. Note that getPosition() should return in a float of angles in degrees with CCW+. All gear ratios, inversions, and CPR conversions should be done by YOU before returning a value. See the docs for an psuedocode example.
+     *    @param getPositionFunc Function to get the current encoder position. as a float in degrees. This should account for any necessary
+     *  gear ratios, offsets, and inversions to return the actual module angle.
+     *    @param updateFunc Function to update the encoder state. This is called periodically to update the internal state of the encoder. Do nothing if unnecesary
+     */
+    UniversalEncoder(std::function<float()> getPositionFunc, std::function<void()> updateFunc);
+
+    std::function<float()> getPosition;
+    std::function<void(float)> setPosition;
+    std::function<void()> update;
+    std::function<bool()> zeroSwitch;
+    float homePosition;
+
+private:
+    bool isAbsolute;
+};
 class SwerveModule
 {
 public:
     /**
      * Construct a swerve module controller.
      *
-     * @param driveMotorPort Port for the drive motor controller.
-     * @param driveMotorInversion True to invert the drive motor direction.
-     * @param turnMotorPort Port for the steering motor.
-     * @param turnMotorInversion True to invert steering direction.
-     * @param angleoffset Steering zero offset in degrees.
+     * @param driveMotorPort Port on the NoU3 for the drive motor controller.
+     * @param driveMotorInversion Set this so that the drive wheel spins forward when the modules are in the zero position. If applying standard current direction causes the wheel to spin backwards, set this to true.
+     * @param turnMotorPort Port on the NoU3 for the steering motor.
+     * @param turnMotorInversion True to invert steering direction. If applying standard direction of current yeilds in CW rotation of the module, set this to true.
      * @param drivegearratio Drive gear ratio from motor to wheel.
      * @param turngearratio Steering gear ratio from motor to module.
-     * @param encodergearratio Encoder gear ratio for position feedback.
-     * @param motorConfig Array containing {motorMinPulse (corresponds to 0°), motorMaxPulse (corresponds to 180°)} PWM bounds for steering motors. Defaults to {540, 2300} which is a common range 9g motor.
      * @param turnEncoder UniversalEncoder instance for the steering encoder. This is used to allow flexible configuration of the encoder implementation while keeping the module code generic.
-     *                           The getPosition function should return the current encoder angle in degrees, accounting for gear ratios, offsets, and inversions so that it can be directly compared to the target angles in the driveModule function. The setPosition function should accept an angle in degrees and set the encoder position accordingly, and is used to zero the encoder during initialization.
-     * @param turnEncoderAndZeroSwitchSupplier Boolean supplier function that returns true when the turn encoder zero switch is triggered. This is used during initialization to find the zero position of the module.
-     * @param turnEncoderHomePosition The encoder position corresponding to the home position in degrees. This is used to zero the encoder during initialization.
-     * @param turnEncoderInversions Per-module turn encoder inversion flags. Set so that it is CCW+ for all modules.
      * @param brakeMode True to enable drive motor braking.
-     * @param driveInversion Set this so that the drive wheel spins forward when the modules are in the zero position. if applying + to + and - to minus on the motor causes the wheel to spin backwards, set this to true.
-    */
+     */
     SwerveModule(uint8_t driveMotorPort,
-                 bool driveMotorInversion = false,
-                 uint8_t turnMotorPort,
-                 bool turnMotorInversion = false,
-                 float angleoffset,
+                 bool driveMotorInversion,
+                 NoU_Motor *turnMotor,
+                 bool turnMotorInversion,
                  float drivegearratio,
                  float turngearratio,
-                 float encodergearratio,
-                 UniversalEncoder* turnEncoder,
-                 float turnEncoderHomePosition,
-                 bool brakeMode = false,
-                 bool driveInversion = false);
+                 UniversalEncoder *turnEncoder,
+                 bool brakeMode);
     /**
      * Initialize the module. This should be called in the setup function of the main program after the global seesaw and interrupt line
      * have been configured, and before any calls to driveModule. This will zero the steering encoder using the configured zero switch and
@@ -108,7 +129,7 @@ public:
      *
      * @return Pointer to the internal steering encoder (never nullptr).
      */
-    // QuicEncoder *getTurnEncoder();
+    UniversalEncoder *getTurnEncoder();
     /**
      * Get a copy of this module object.
      *
@@ -118,41 +139,12 @@ public:
 
 private:
     NoU_Motor driveMotor;
-    NoU_Motor turnMotor;
+    NoU_Motor *turnMotor;
     UniversalEncoder *turnEncoder;
-    float driveGearRatio;
-    float turnGearRatio;
-    float encoderGearRatio;
-    float currentSpeed;
-    float currentAngle, encoderHomePosition;
-    bool turnInversion;
-    bool driveInversion;
+    float driveGearRatio, turnGearRatio, currentSpeed, currentAngle;
+    bool turnInversion, driveInversion;
+};
 
-};
-class UniversalEncoder
-{
-public:
-    /**
-     * Constructor
-     *    @param getPositionFunc Function to get the current encoder position. as a float in degrees. This should account for any necessary
-     *  gear ratios, offsets, and inversions to return the actual module angle.
-     *    @param setPositionFunc Function to set the encoder position. This is used to zero the encoder during initialization by setting the
-     *  current position to the known home position. It should accept a float in degrees and convert it to the appropriate units for the
-     * underlying encoder implementation.
-     *    @param updateFunc Function to update the encoder state. This is called periodically to update the internal state of the encoder.
-     *    @param zeroSwitchSupplier Function that returns true when the encoder's zero switch is triggered. This is used during initialization
-     *  to find the zero position of the module. It should return a boolean indicating whether the zero switch is currently active.
-     */
-    UniversalEncoder(std::function<float()> getPositionFunc, 
-    std::function<void(float)> setPositionFunc,
-     std::function<void()> updateFunc = []() {},
-      std::function<bool()> zeroSwitchSupplier);
-      
-    std::function<float()> getPosition;
-    std::function<void(float)> setPosition;
-    std::function<void()> update;
-    std::function<bool()> zeroSwitch;
-};
 // class QuicEncoder
 // {
 // public:
