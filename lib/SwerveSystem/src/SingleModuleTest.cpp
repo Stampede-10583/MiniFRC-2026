@@ -1,10 +1,10 @@
 #include <array>
 #include "SingleModuleTest.h"
-#include "Arduino.h"
-#include "Alfredo_NoU3.h"
-#include "Alfredo_NoU3_encoder.h"
+#include <Arduino.h>
+#include <Alfredo_NoU3.h>
+#include <Alfredo_NoU3_encoder.h>
 #include <PestoLink-Receive.h>
-using namespace std;
+
 //#include "Adafruit_seesaw.h"
 //constexpr std::array<std::array<uint8_t, 3>, 4> kSeesawEncoderAndZeroSwitchPins = {{{8, 9, 12}, {10, 11, 14}, {2, 3, 17}, {4, 5, 9}}};
 
@@ -28,8 +28,6 @@ SwerveModule::SwerveModule(uint8_t driveMotorPort,
     driveMotor.setBrakeMode(brakeMode);
 }
 
-namespace
-{
     void SwerveModule::initializeModule()
     {
         //gSeesaw->pinMode(zeroSwitchPin, INPUT_PULLUP);
@@ -231,4 +229,3 @@ namespace
 
     //     return digitalRead(pin);
     // }
-}
