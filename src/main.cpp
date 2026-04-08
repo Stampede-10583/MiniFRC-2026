@@ -1,25 +1,29 @@
 #include <PestoLink-Receive.h>
 #include <Alfredo_NoU3.h>
 #include <SingleModuleTest.h>
-
+bool robotEnabled = false;
+bool firstLoop = true;
 // This creates the drivetrain object, you shouldn't have to mess with this
 
-//The gyroscope sensor is by default precise, but not accurate. This is fixable by adjusting the angular scale factor.
-//Tuning procedure: 
-//Rotate the robot in place exactly 5 times. Use the Serial printout to read the current gyro angle in Radians, we will call this "measured_angle".
-//measured_angle should be nearly 31.416 which is 5*2*pi. Update measured_angle below to complete the tuning process. 
-// float measured_angle = 31.416;
-// float angular_scale = (5.0*2.0*PI) / measured_angle;
+// The gyroscope sensor is by default precise, but not accurate. This is fixable by adjusting the angular scale factor.
+// Tuning procedure:
+// Rotate the robot in place exactly 5 times. Use the Serial printout to read the current gyro angle in Radians, we will call this "measured_angle".
+// measured_angle should be nearly 31.416 which is 5*2*pi. Update measured_angle below to complete the tuning process.
+//  float measured_angle = 31.416;
+//  float angular_scale = (5.0*2.0*PI) / measured_angle;
 SwerveModule *swerveModule = nullptr;
 NoU_Motor turnMotor(4);
 bool telemetryEnabled = true;
-float getTurnAngleDegrees() {
+float getTurnAngleDegrees()
+{
     int32_t pos = turnMotor.getPosition();
     float angle = static_cast<float>(pos) * 800.0f;
-    while (angle >= 360.0f) {
+    while (angle >= 360.0f)
+    {
         angle -= 360.0f;
     }
-    while (angle < 0.0f) {
+    while (angle < 0.0f)
+    {
         angle += 360.0f;
     }
     return angle;
@@ -27,10 +31,12 @@ float getTurnAngleDegrees() {
 
 void updateEncoder() {}
 
-void setEncoderPosition(float) {turnMotor.resetPosition();}
+void setEncoderPosition(float) { turnMotor.resetPosition(); }
 
-bool zeroSwitchTriggered() {
-    if (digitalRead(9) == HIGH) { // active low
+bool zeroSwitchTriggered()
+{
+    if (digitalRead(9) == LOW)
+    { // active low
         return true;
     }
     return false;
@@ -43,43 +49,62 @@ UniversalEncoder encoder1(
     setEncoderPosition,
     zeroSwitchTriggered,
     0.0f);
-std::array<float, 3> PIDconstants = {1,1,1};
+std::array<float, 3> PIDconstants = {1, 1, 1};
 
-void setup() {
-    pinMode(9, INPUT); // encoder zero switch pin
+void setup()
+{
+    pinMode(9, INPUT_PULLUP); // encoder zero switch pin
     Serial.begin(115200);
     NoU3.begin();
     PestoLink.begin("bomb#3");
     swerveModule = new SwerveModule(5, false, &turnMotor, false, 1.0f, 1.0f, &encoder1, false, &NoU3, PIDconstants);
     NoU3.setServiceLight(LIGHT_OFF);
     NoU3.calibrateIMUs(); // this takes exactly one second. Do not move the robot during calibration.
-    delay(1000); // wait for IMU calibration to finish before starting the main loop
-    swerveModule->initializeModule();
+    delay(1000);          // wait for IMU calibration to finish before starting the main loop
 }
 
-void loop() {
+void loop()
+{
     swerveModule->updateModuleState();
     float driveSetpoint = 0;
-    if (PestoLink.isConnected()) {
-        swerveModule->driveMotors();
-        PestoLink.printBatteryVoltage(NoU3.getBatteryVoltage());
-        NoU3.setServiceLight(LIGHT_ENABLED);
-        driveSetpoint = PestoLink.getAxis(0); // drive with left stick
-        if (PestoLink.buttonHeld(13)) { //POV DOWN for telemetry
-            telemetryEnabled = !telemetryEnabled;
-            PestoLink.rumble();
+    if (PestoLink.isConnected())
+    {
+        if (robotEnabled)
+        {
+            if (PestoLink.buttonHeld(13) && !swerveModule->initialized)
+            {
+                while (!swerveModule->initialized)
+                {
+                    swerveModule->initializeModule();
+                }
+            }
+            if (PestoLink.buttonHeld(8))
+            {
+                robotEnabled = false;
+                PestoLink.rumble();
+            }
+            swerveModule->directDriveModule(PestoLink.getAxis(0), PestoLink.getAxis(2));
+            if (swerveModule->initialized) swerveModule->driveMotors(); else swerveModule->stopModule();
+            NoU3.setServiceLight(LIGHT_ENABLED);
         }
-        if (telemetryEnabled) {
-            String telemetryText = "Yaw: " + String(NoU3.yaw) + " Pitch: " + String(NoU3.pitch) + " Roll: " + String(NoU3.roll);
-            PestoLink.printTerminal(telemetryText.c_str());
-        }
-        float axis1 = PestoLink.getAxis(1) * 180.0f;
-        if (axis1 <0) {
-            axis1 = abs(axis1) + 180.0f;
-        }
-    } else {
-         // stop the robot if the controller is disconnected
+        else
+        {
+            NoU3.setServiceLight(LIGHT_DISABLED);
+            swerveModule->directDriveModule(0, 0);
+            swerveModule->stopModule();
+            if (PestoLink.buttonHeld(9))
+            {
+                robotEnabled = true;
+                PestoLink.rumble();
+            }
+        } 
+       PestoLink.printTelemetry(((robotEnabled ? "E" : "D") + String(NoU3.getBatteryVoltage())).c_str(), robotEnabled ? "0x00FF00" : "0xFF0000");
+    }
+    else
+    {
+        robotEnabled = false;
+        swerveModule->directDriveModule(0, 0);
+        swerveModule->stopModule();
         NoU3.setServiceLight(LIGHT_DISABLED);
     }
-    swerveModule->driveModule(driveSetpoint, 0);
 }

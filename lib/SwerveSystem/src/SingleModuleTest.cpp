@@ -28,7 +28,7 @@ SwerveModule::SwerveModule(uint8_t driveMotorPort,
     driveInversion = driveMotorInversion;
     driveMotor.setInverted(driveMotorInversion);
     driveMotor.setBrakeMode(brakeMode);
-    posPIDController = QuickPID(&PIDInput, &PIDOutput, &PIDSetpoint);
+    posPIDController = QuickPID(&PIDInput, &turnOutput, &PIDSetpoint);
     posPIDController.SetTunings(kPID[0],kPID[1],kPID[2]);
 }
 SwerveModule::SwerveModule(uint8_t driveMotorPort,
@@ -51,11 +51,15 @@ SwerveModule::SwerveModule(uint8_t driveMotorPort,
     driveInversion = driveMotorInversion;
     driveMotor.setInverted(driveMotorInversion);
     driveMotor.setBrakeMode(brakeMode);
-    posPIDController = QuickPID(&PIDInput, &PIDOutput, &PIDSetpoint);
+    posPIDController = QuickPID(&PIDInput, &turnOutput, &PIDSetpoint);
     posPIDController.SetTunings(kPID[0],kPID[1],kPID[2]);
 }
-void SwerveModule::initializeModule()
+bool SwerveModule::initializeModule()
 {
+    if (initialized)
+    {
+        return true;
+    }
     // gSeesaw->pinMode(zeroSwitchPin, INPUT_PULLUP);
     if (stockEncoder)
     {
@@ -63,17 +67,22 @@ void SwerveModule::initializeModule()
     }
     driveMotor.beginEncoder();
     // turnEncoder->initialize();
+    turnMotor->set(.5); // optionally apply a small turn output to help the module find the zero switch if it's not already there
     while (!turnEncoder->zeroSwitch()) // wait for zero switch to be triggered
     {
-        turnMotor->set(.5); // optionally apply a small turn output to help the module find the zero switch if it's not already there
+        turnEncoder->update();
     }
     turnMotor->set(0);
     turnEncoder->setPosition(turnEncoder->homePosition);
-
     PIDInput = turnEncoder->getPosition();
+    posPIDController.SetMode(QuickPID::Control::automatic);
+    posPIDController.Initialize();
+    initialized = true;
+    return true;
 }
 void SwerveModule::driveModule(float targetAngle, float driveSpeed)
 {
+    posPIDController.SetMode(QuickPID::Control::automatic);
     bool instantialDriveInversion = false;
     // determine the inversion here
     //  also add the position PID for the motor or some crap
@@ -82,9 +91,10 @@ void SwerveModule::driveModule(float targetAngle, float driveSpeed)
     driveSetpoint = driveInversion ? instantialDriveSpeed : -instantialDriveSpeed; // do things and crap but field oriented!
 }
 
-void SwerveModule::directDriveModule(float targetAngle, float driveVelocity)
+void SwerveModule::directDriveModule(float turnVelocity, float driveVelocity)
 {
-    PIDSetpoint =targetAngle;
+    posPIDController.SetMode(QuickPID::Control::manual);
+    turnOutput = turnVelocity;
     driveSetpoint = driveInversion ? driveVelocity : -driveVelocity;
 }
 
@@ -119,7 +129,7 @@ void SwerveModule::updateModuleState()
 }
 void SwerveModule::driveMotors() {
     posPIDController.Compute();
-    turnMotor->set(PIDOutput/255);
+    posPIDController.GetMode() ?  turnMotor->set(turnOutput/255) : turnMotor->set(turnOutput); // if in automatic mode, turnOutput is a value from 0-255 representing the power to apply to the motor. if in manual mode, turnOutput is the actual velocity to set on the motor. this allows for more direct control when not using the PID controller, which can be useful for testing and debugging.
     driveMotor.set(driveSetpoint);
 }
 NoU_Motor *SwerveModule::getDriveMotor()

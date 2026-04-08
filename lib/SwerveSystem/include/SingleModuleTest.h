@@ -46,6 +46,7 @@ private:
 class SwerveModule
 {
 public:
+    bool initialized = false;
     /**
      * FOR NON-BUILT IN TURN ENCODERS Construct a swerve module controller.
      *
@@ -95,11 +96,20 @@ public:
                 NoU_Agent *agent,
                 std::array<float, 3> kPID);
     /**
+     * Stop the module.
+     */
+    void stopModule() {
+        driveMotor.set(0);
+        turnMotor->set(0);
+    }
+    /**
      * Initialize the module. This should be called in the setup function of the main program after the global seesaw and interrupt line
      * have been configured, and before any calls to driveModule. This will zero the steering encoder using the configured zero switch and
      * home position, so it WILL CAUSE THE MODULE TO ROTATE.
+     * @return True if initialized, false if not initialized.
+     * Note that this function will block until the zero switch is triggered, so it should only be called once during setup and not called again during operation.
      */
-    void initializeModule();
+    bool initializeModule();
     /**
      * Drive the module using a robot-relative target angle. Automatically chooses the shortest path to the target angle and reverses drive
      * direction if beneficial.
@@ -182,7 +192,7 @@ private:
     NoU_Motor *turnMotor;
     UniversalEncoder *turnEncoder;
     QuickPID posPIDController;
-    float driveGearRatio, turnGearRatio, currentSpeed, currentAngle, PIDInput, PIDOutput, PIDSetpoint, driveSetpoint;
+    float driveGearRatio, turnGearRatio, currentSpeed, currentAngle, PIDInput, turnOutput, PIDSetpoint, driveSetpoint;
     bool turnInversion, driveInversion, stockEncoder;
 };
 
