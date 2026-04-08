@@ -16,8 +16,9 @@ SwerveModule::SwerveModule(uint8_t driveMotorPort,
                  float drivegearratio,
                  float turngearratio,
                  UniversalEncoder* turnEncoder,
-                 bool brakeMode)
-    : driveMotor(NoU_Motor(driveMotorPort)), turnMotor(turnMotor), turnEncoder(turnEncoder)
+                 bool brakeMode,
+                NoU_Agent *agent)
+    : driveMotor(NoU_Motor(driveMotorPort)), turnMotor(turnMotor), turnEncoder(turnEncoder), agent(agent)
 {
     stockEncoder = true;
     driveGearRatio = drivegearratio;
@@ -35,8 +36,9 @@ SwerveModule::SwerveModule(uint8_t driveMotorPort,
                  float drivegearratio,
                  float turngearratio,
                  UniversalEncoder* turnEncoder,
-                 bool brakeMode)
-    : driveMotor(NoU_Motor(driveMotorPort)), turnEncoder(turnEncoder)
+                 bool brakeMode,
+                NoU_Agent *agent)
+    : driveMotor(NoU_Motor(driveMotorPort)), turnEncoder(turnEncoder), agent(agent)
 {
     stockEncoder = false;
     turnMotor = new NoU_Motor(turnMotorPort);

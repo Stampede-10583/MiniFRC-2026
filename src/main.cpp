@@ -50,7 +50,7 @@ void setup() {
     NoU3.begin();
     PestoLink.begin("bomb#3");
     swerveModule = new SwerveModule(5, false, &turnMotor, false, 1.0f, 1.0f, &encoder1, false);
-    NoU3.setServiceLight(LIGHT_CALIBRATING);
+    NoU3.setServiceLight(LIGHT_OFF);
     NoU3.calibrateIMUs(); // this takes exactly one second. Do not move the robot during calibration.
     delay(1000); // wait for IMU calibration to finish before starting the main loop
 }

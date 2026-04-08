@@ -55,6 +55,7 @@ public:
      * @param turngearratio Steering gear ratio from motor to module.
      * @param turnEncoder UniversalEncoder instance for the steering encoder. This is used to allow flexible configuration of the encoder implementation while keeping the module code generic.
      * @param brakeMode True to enable drive motor braking.
+     * @param agent Pointer to the NoU_Agent instance to use for this module. This is used to allow the module to access the IMU data for field-oriented control if desired, and also allows for more flexible configuration of the NoU_Agent instance used by the module.
      */
     SwerveModule(uint8_t driveMotorPort,
                  bool driveMotorInversion,
@@ -63,7 +64,8 @@ public:
                  float drivegearratio,
                  float turngearratio,
                  UniversalEncoder *turnEncoder,
-                 bool brakeMode);
+                 bool brakeMode,
+                NoU_Agent *agent);
     /**
      * FOR BUILT IN TURN ENCODERS Construct a swerve module controller.
      *
@@ -75,6 +77,7 @@ public:
      * @param turngearratio Steering gear ratio from motor to module.
      * @param turnEncoder UniversalEncoder instance for the steering encoder. This is used to allow flexible configuration of the encoder implementation while keeping the module code generic.
      * @param brakeMode True to enable drive motor braking.
+     * @param agent Pointer to the NoU_Agent instance to use for this module. This is used to allow the module to access the IMU data for field-oriented control if desired, and also allows for more flexible configuration of the NoU_Agent instance used by the module.
      */
     SwerveModule(uint8_t driveMotorPort,
                  bool driveMotorInversion,
@@ -83,7 +86,8 @@ public:
                  float drivegearratio,
                  float turngearratio,
                  UniversalEncoder *turnEncoder,
-                 bool brakeMode);
+                 bool brakeMode,
+                NoU_Agent *agent);
     /**
      * Initialize the module. This should be called in the setup function of the main program after the global seesaw and interrupt line
      * have been configured, and before any calls to driveModule. This will zero the steering encoder using the configured zero switch and
@@ -159,6 +163,7 @@ public:
     SwerveModule getModule();
 
 private:
+    NoU_Agent *agent;
     NoU_Motor driveMotor;
     NoU_Motor *turnMotor;
     UniversalEncoder *turnEncoder;
