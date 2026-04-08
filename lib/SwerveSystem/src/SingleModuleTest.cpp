@@ -19,6 +19,7 @@ SwerveModule::SwerveModule(uint8_t driveMotorPort,
                  bool brakeMode)
     : driveMotor(NoU_Motor(driveMotorPort)), turnMotor(turnMotor), turnEncoder(turnEncoder)
 {
+    stockEncoder = true;
     driveGearRatio = drivegearratio;
     turnGearRatio = turngearratio;
 
@@ -27,15 +28,36 @@ SwerveModule::SwerveModule(uint8_t driveMotorPort,
     driveMotor.setInverted(driveMotorInversion);
     driveMotor.setBrakeMode(brakeMode);
 }
-
+SwerveModule::SwerveModule(uint8_t driveMotorPort,
+                 bool driveMotorInversion,
+                 uint8_t turnMotorPort,
+                 bool turnMotorInversion,
+                 float drivegearratio,
+                 float turngearratio,
+                 UniversalEncoder* turnEncoder,
+                 bool brakeMode)
+    : driveMotor(NoU_Motor(driveMotorPort)), turnEncoder(turnEncoder)
+{
+    stockEncoder = false;
+    turnMotor = new NoU_Motor(turnMotorPort);
+    driveGearRatio = drivegearratio;
+    turnGearRatio = turngearratio;
+    turnInversion = turnMotorInversion;
+    driveInversion = driveMotorInversion;
+    driveMotor.setInverted(driveMotorInversion);
+    driveMotor.setBrakeMode(brakeMode);
+}
     void SwerveModule::initializeModule()
     {
         //gSeesaw->pinMode(zeroSwitchPin, INPUT_PULLUP);
+        if (stockEncoder) {
+            turnMotor->beginEncoder();
+        }
         driveMotor.beginEncoder();
         //turnEncoder->initialize();
         while (!turnEncoder->zeroSwitch()) // wait for zero switch to be triggered
         {
-            turnMotor->set(.1); // optionally apply a small turn output to help the module find the zero switch if it's not already there
+            turnMotor->set(.5); // optionally apply a small turn output to help the module find the zero switch if it's not already there
         }
         turnEncoder->setPosition(turnEncoder->homePosition);
     }
@@ -99,10 +121,10 @@ SwerveModule::SwerveModule(uint8_t driveMotorPort,
     {
         return *this;
     }
-    UniversalEncoder::UniversalEncoder(bool isabsolute, std::function<float()> getPositionFunc,  std::function<void()> updateFunc, std::function<void(float)> setPositionFunc, std::function<bool()> zeroSwitchSupplier, float homePosition)
+    UniversalEncoder::UniversalEncoder(bool isStock, std::function<float()> getPositionFunc,  std::function<void()> updateFunc, std::function<void(float)> setPositionFunc, std::function<bool()> zeroSwitchSupplier, float homePosition)
         : getPosition(getPositionFunc), setPosition(setPositionFunc), update(updateFunc), zeroSwitch(zeroSwitchSupplier), homePosition(homePosition)
     {
-        (void)isabsolute;
+        isStockEncoder = isStock;
         isAbsolute = false;
     }
     UniversalEncoder::UniversalEncoder(std::function<float()> getPositionFunc, std::function<void()> updateFunc)

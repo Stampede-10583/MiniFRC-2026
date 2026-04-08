@@ -36,19 +36,40 @@ public:
     std::function<void()> update;
     std::function<bool()> zeroSwitch;
     float homePosition;
-
 private:
     bool isAbsolute;
+    bool isStockEncoder; // for stock encoders, we can assume certain things about the behavior of the zero switch and the setPosition function, which allows us to simplify the initialization process in the module code. This should be set to true if using a stock encoder with a known zeroing procedure, and false if using a custom encoder implementation.
+
 };
 class SwerveModule
 {
 public:
     /**
-     * Construct a swerve module controller.
+     * FOR NON-BUILT IN TURN ENCODERS Construct a swerve module controller.
      *
      * @param driveMotorPort Port on the NoU3 for the drive motor controller.
      * @param driveMotorInversion Set this so that the drive wheel spins forward when the modules are in the zero position. If applying standard current direction causes the wheel to spin backwards, set this to true.
      * @param turnMotorPort Port on the NoU3 for the steering motor.
+     * @param turnMotorInversion True to invert steering direction. If applying standard direction of current yeilds in CW rotation of the module, set this to true.
+     * @param drivegearratio Drive gear ratio from motor to wheel.
+     * @param turngearratio Steering gear ratio from motor to module.
+     * @param turnEncoder UniversalEncoder instance for the steering encoder. This is used to allow flexible configuration of the encoder implementation while keeping the module code generic.
+     * @param brakeMode True to enable drive motor braking.
+     */
+    SwerveModule(uint8_t driveMotorPort,
+                 bool driveMotorInversion,
+                 uint8_t turnMotorPort,
+                 bool turnMotorInversion,
+                 float drivegearratio,
+                 float turngearratio,
+                 UniversalEncoder *turnEncoder,
+                 bool brakeMode);
+    /**
+     * FOR BUILT IN TURN ENCODERS Construct a swerve module controller.
+     *
+     * @param driveMotorPort Port on the NoU3 for the drive motor controller.
+     * @param driveMotorInversion Set this so that the drive wheel spins forward when the modules are in the zero position. If applying standard current direction causes the wheel to spin backwards, set this to true.
+     * @param turnMotor Steering motor ptr. this allows you to access the encoder for making a custom UniversalEncoder implementation if you are using a built in encoder on the motor, and also allows for more flexible motor controller options for the steering motor.
      * @param turnMotorInversion True to invert steering direction. If applying standard direction of current yeilds in CW rotation of the module, set this to true.
      * @param drivegearratio Drive gear ratio from motor to wheel.
      * @param turngearratio Steering gear ratio from motor to module.
@@ -142,7 +163,7 @@ private:
     NoU_Motor *turnMotor;
     UniversalEncoder *turnEncoder;
     float driveGearRatio, turnGearRatio, currentSpeed, currentAngle;
-    bool turnInversion, driveInversion;
+    bool turnInversion, driveInversion, stockEncoder;
 };
 
 // class QuicEncoder
