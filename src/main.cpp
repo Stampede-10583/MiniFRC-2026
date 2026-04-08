@@ -11,7 +11,7 @@
 // float measured_angle = 31.416;
 // float angular_scale = (5.0*2.0*PI) / measured_angle;
 SwerveModule *swerveModule = nullptr;
-NoU_Motor turnMotor(3);
+NoU_Motor turnMotor(4);
 bool telemetryEnabled = true;
 float getTurnAngleDegrees() {
     int32_t pos = turnMotor.getPosition();
@@ -30,7 +30,7 @@ void updateEncoder() {}
 void setEncoderPosition(float) {turnMotor.resetPosition();}
 
 bool zeroSwitchTriggered() {
-    if (digitalRead(9) == LOW) { // active low
+    if (digitalRead(9) == HIGH) { // active low
         return true;
     }
     return false;
@@ -43,22 +43,25 @@ UniversalEncoder encoder1(
     setEncoderPosition,
     zeroSwitchTriggered,
     0.0f);
+std::array<float, 3> PIDconstants = {1,1,1};
 
 void setup() {
     pinMode(9, INPUT); // encoder zero switch pin
     Serial.begin(115200);
     NoU3.begin();
     PestoLink.begin("bomb#3");
-    swerveModule = new SwerveModule(5, false, &turnMotor, false, 1.0f, 1.0f, &encoder1, false);
+    swerveModule = new SwerveModule(5, false, &turnMotor, false, 1.0f, 1.0f, &encoder1, false, &NoU3, PIDconstants);
     NoU3.setServiceLight(LIGHT_OFF);
     NoU3.calibrateIMUs(); // this takes exactly one second. Do not move the robot during calibration.
     delay(1000); // wait for IMU calibration to finish before starting the main loop
+    swerveModule->initializeModule();
 }
 
 void loop() {
     swerveModule->updateModuleState();
     float driveSetpoint = 0;
     if (PestoLink.isConnected()) {
+        swerveModule->driveMotors();
         PestoLink.printBatteryVoltage(NoU3.getBatteryVoltage());
         NoU3.setServiceLight(LIGHT_ENABLED);
         driveSetpoint = PestoLink.getAxis(0); // drive with left stick
@@ -70,8 +73,9 @@ void loop() {
             String telemetryText = "Yaw: " + String(NoU3.yaw) + " Pitch: " + String(NoU3.pitch) + " Roll: " + String(NoU3.roll);
             PestoLink.printTerminal(telemetryText.c_str());
         }
-        if (PestoLink.buttonHeld(1)) {
-            swerveModule->initializeModule();
+        float axis1 = PestoLink.getAxis(1) * 180.0f;
+        if (axis1 <0) {
+            axis1 = abs(axis1) + 180.0f;
         }
     } else {
          // stop the robot if the controller is disconnected

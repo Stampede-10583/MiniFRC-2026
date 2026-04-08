@@ -6,6 +6,8 @@
 #include <functional>
 #include "Alfredo_NoU3.h"
 #include "Alfredo_NoU3_encoder.h"
+#include <QuickPID.h>
+
 //class Adafruit_seesaw;
 class UniversalEncoder
 {
@@ -56,6 +58,7 @@ public:
      * @param turnEncoder UniversalEncoder instance for the steering encoder. This is used to allow flexible configuration of the encoder implementation while keeping the module code generic.
      * @param brakeMode True to enable drive motor braking.
      * @param agent Pointer to the NoU_Agent instance to use for this module. This is used to allow the module to access the IMU data for field-oriented control if desired, and also allows for more flexible configuration of the NoU_Agent instance used by the module.
+     * @param kPID kP, kI, kD, for the module position PID controller (look into PID Controllers for details)
      */
     SwerveModule(uint8_t driveMotorPort,
                  bool driveMotorInversion,
@@ -65,7 +68,8 @@ public:
                  float turngearratio,
                  UniversalEncoder *turnEncoder,
                  bool brakeMode,
-                NoU_Agent *agent);
+                NoU_Agent *agent,
+                std::array<float, 3> kPID);
     /**
      * FOR BUILT IN TURN ENCODERS Construct a swerve module controller.
      *
@@ -78,6 +82,7 @@ public:
      * @param turnEncoder UniversalEncoder instance for the steering encoder. This is used to allow flexible configuration of the encoder implementation while keeping the module code generic.
      * @param brakeMode True to enable drive motor braking.
      * @param agent Pointer to the NoU_Agent instance to use for this module. This is used to allow the module to access the IMU data for field-oriented control if desired, and also allows for more flexible configuration of the NoU_Agent instance used by the module.
+     * @param kPID kP, kI, kD, for the module position PID controller (look into PID Controllers for details)
      */
     SwerveModule(uint8_t driveMotorPort,
                  bool driveMotorInversion,
@@ -87,7 +92,8 @@ public:
                  float turngearratio,
                  UniversalEncoder *turnEncoder,
                  bool brakeMode,
-                NoU_Agent *agent);
+                NoU_Agent *agent,
+                std::array<float, 3> kPID);
     /**
      * Initialize the module. This should be called in the setup function of the main program after the global seesaw and interrupt line
      * have been configured, and before any calls to driveModule. This will zero the steering encoder using the configured zero switch and
@@ -137,6 +143,10 @@ public:
      */
     void updateModuleState();
     /**
+     * Run in loop whenever the bot is "Enabled" i.e. whenever you wish for it to move
+     */
+    void driveMotors();
+    /**
      * Get direct access to the drive motor object.
      *
      * @return Pointer to the internal drive motor (never nullptr).
@@ -161,13 +171,18 @@ public:
      * @return Copy of the current SwerveModule instance.
      */
     SwerveModule getModule();
-
+    /**
+     * Get a pointer to the Quick_PID object that is in use
+     * @returns Pointer to Quick_PID object
+     */
+    QuickPID *getPIDController();
 private:
     NoU_Agent *agent;
     NoU_Motor driveMotor;
     NoU_Motor *turnMotor;
     UniversalEncoder *turnEncoder;
-    float driveGearRatio, turnGearRatio, currentSpeed, currentAngle;
+    QuickPID posPIDController;
+    float driveGearRatio, turnGearRatio, currentSpeed, currentAngle, PIDInput, PIDOutput, PIDSetpoint, driveSetpoint;
     bool turnInversion, driveInversion, stockEncoder;
 };
 
