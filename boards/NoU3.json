@@ -1,0 +1,43 @@
+{
+    "build": {
+        "core": "esp32",
+        "mcu": "esp32s3",
+        "variant": "NoU3",
+        "f_cpu": "240000000L",
+        "f_flash": "80000000L",
+        "flash_mode": "qio",
+        "arduino": {
+            "partitions": "default_8MB.csv",
+            "memory_type": "qio_qspi",
+            "ldscript": "esp32s3_out.ld"
+        },
+        "extra_flags": [
+            "-DARDUINO_ESP32S3_DEV",
+            "-DARDUINO_USB_MODE=1",
+            "-DARDUINO_USB_CDC_ON_BOOT=1"
+        ]
+    },
+    "upload": {
+        "flash_size": "8MB",
+        "maximum_size": 8388608,
+        "maximum_ram_size": 327680,
+        "require_upload_port": true,
+        "speed": 921600
+    },
+    "frameworks": [
+        "arduino",
+        "espidf"
+    ],
+    "connectivity": [
+        "wifi",
+        "bluetooth",
+        "ble"
+    ],
+    "debug": {
+        "openocd_target": "esp32s3.cfg"
+    },
+    "name": "NoU3 ESP32-S3 QFN56 (8MB GD Flash)",
+    "vendor": "Alfredo Systems",
+    "url": "https://www.espressif.com/en/products/socs/esp32-s3",
+    "platform": "espressif32"
+}
