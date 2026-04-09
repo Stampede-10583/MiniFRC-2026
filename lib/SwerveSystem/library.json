@@ -25,14 +25,19 @@
   "frameworks": "arduino",
   "dependencies": [
     {
-      "name": "PestoLink-Receive",
-      "owner": "alfredosystems",
-      "version": "~1.0.10"
-    },
-    {
       "name": "Alfredo-NoU3",
       "owner": "alfredosystems",
       "version": "~1.0.12"
+    },
+    {
+      "name": "QuickPID",
+      "owner": "tekdemo",
+      "version": "~3.1.9"
+    },
+    {
+      "name": "VectorXf",
+      "owner": "hideakitai",
+      "version": "~0.4.3"
     }
   ],
   "headers": [

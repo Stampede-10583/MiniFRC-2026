@@ -1,53 +1,105 @@
-#include <array>
 #include <MiniSwerveLib.h>
-#include <Arduino.h>
-#include <Alfredo_NoU3.h>
-#include <Alfredo_NoU3_encoder.h>
-
 
 SwerveDrive::SwerveDrive(
+    NoU_Agent* agent,
+    float imuAngularScale,
     uint8_t driveMotorPorts[4],
     std::array<bool, 4> driveMotorInversions,
     std::array<float, 4> driveGearRatios,
-    uint8_t turnServoPorts[4],
-    std::array<float, 4> turnServoOffsets,
-    std::array<bool, 4> turnServoInversions,
-    std::array<float, 4> turnServoGearRatios,
-    std::array<uint16_t, 2> servoConfig,
-    std::array<uint8_t, 4> turnEncoderAndZeroSwitchPorts,
-    std::array<int32_t, 4> turnEncoderHomePositions,
-    std::array<bool, 4> turnEncoderInversions,
-    float imuAngularScale,
+    std::array<NoU_Motor *, 4> turnMotors,
+    std::array<bool, 4> turnMotorInversions,
+    std::array<float, 4> turnMotorGearRatios,
+    std::array<UniversalEncoder*, 4> turnEncoders,
     float maxSpeed,
     bool brakeMode,
-    uint8_t interruptPin)
-    : imuAngularScale(imuAngularScale),
-      maxSpeed(maxSpeed), modules{
-                              SwerveModule(driveMotorPorts[0], driveMotorInversions[0], turnServoPorts[0], turnServoInversions[0], turnServoOffsets[0], driveGearRatios[0], turnServoGearRatios[0], turnEncoderHomePositions[0], servoConfig, turnEncoderAndZeroSwitchPorts[0], turnEncoderInversions[0], turnEncoderAndZeroSwitchPorts[0]),
-                              SwerveModule(driveMotorPorts[1], driveMotorInversions[1], turnServoPorts[1], turnServoInversions[1], turnServoOffsets[1], driveGearRatios[1], turnServoGearRatios[1], turnEncoderHomePositions[1], servoConfig, turnEncoderAndZeroSwitchPorts[1], turnEncoderInversions[1], turnEncoderAndZeroSwitchPorts[1]),
-                              SwerveModule(driveMotorPorts[2], driveMotorInversions[2], turnServoPorts[2], turnServoInversions[2], turnServoOffsets[2], driveGearRatios[2], turnServoGearRatios[2], turnEncoderHomePositions[2], servoConfig, turnEncoderAndZeroSwitchPorts[2], turnEncoderInversions[2], turnEncoderAndZeroSwitchPorts[2]),
-                              SwerveModule(driveMotorPorts[3], driveMotorInversions[3], turnServoPorts[3], turnServoInversions[3], turnServoOffsets[3], driveGearRatios[3], turnServoGearRatios[3], turnEncoderHomePositions[3], servoConfig, turnEncoderAndZeroSwitchPorts[3], turnEncoderInversions[3], turnEncoderAndZeroSwitchPorts[3])}
+    std::array<std::array<float, 2>, 4> moduleOffsets,
+    std::array<float, 3> kPID)
+    : agent(agent), imuAngularScale(imuAngularScale),
+      maxSpeed(maxSpeed), brakeMode(brakeMode), moduleOffsets(moduleOffsets), modules{
+                              SwerveModule(driveMotorPorts[0], driveMotorInversions[0], turnMotors[0], turnMotorInversions[0], driveGearRatios[0], turnMotorGearRatios[0], turnEncoders[0], brakeMode, kPID),
+                              SwerveModule(driveMotorPorts[1], driveMotorInversions[1], turnMotors[1], turnMotorInversions[1], driveGearRatios[1], turnMotorGearRatios[1], turnEncoders[1], brakeMode, kPID),
+                              SwerveModule(driveMotorPorts[2], driveMotorInversions[2], turnMotors[2], turnMotorInversions[2], driveGearRatios[2], turnMotorGearRatios[2], turnEncoders[2], brakeMode, kPID),
+                              SwerveModule(driveMotorPorts[3], driveMotorInversions[3], turnMotors[3], turnMotorInversions[3], driveGearRatios[3], turnMotorGearRatios[3], turnEncoders[3], brakeMode, kPID)}
 {
-    brakeMode = brakeMode;
+}
+SwerveDrive::SwerveDrive(
+    NoU_Agent* agent,
+    float imuAngularScale,
+    uint8_t driveMotorPorts[4],
+    std::array<bool, 4> driveMotorInversions,
+    std::array<float, 4> driveGearRatios,
+    uint8_t turnMotorPorts[4],
+    std::array<bool, 4> turnMotorInversions,
+    std::array<float, 4> turnMotorGearRatios,
+    std::array<UniversalEncoder*, 4> turnEncoders,
+    float maxSpeed,
+    bool brakeMode,
+    std::array<std::array<float, 2>, 4> moduleOffsets,
+    std::array<float, 3> kPID)
+    : agent(agent), imuAngularScale(imuAngularScale),
+      maxSpeed(maxSpeed), brakeMode(brakeMode), moduleOffsets(moduleOffsets), modules{
+                              SwerveModule(driveMotorPorts[0], driveMotorInversions[0], turnMotorPorts[0], turnMotorInversions[0], driveGearRatios[0], turnMotorGearRatios[0], turnEncoders[0], brakeMode, kPID),
+                              SwerveModule(driveMotorPorts[1], driveMotorInversions[1], turnMotorPorts[1], turnMotorInversions[1], driveGearRatios[1], turnMotorGearRatios[1], turnEncoders[1], brakeMode, kPID),
+                              SwerveModule(driveMotorPorts[2], driveMotorInversions[2], turnMotorPorts[2], turnMotorInversions[2], driveGearRatios[2], turnMotorGearRatios[2], turnEncoders[2], brakeMode, kPID),
+                              SwerveModule(driveMotorPorts[3], driveMotorInversions[3], turnMotorPorts[3], turnMotorInversions[3], driveGearRatios[3], turnMotorGearRatios[3], turnEncoders[3], brakeMode, kPID)}
+{
 }
 std::vector<float> SwerveDrive::getTargetVelocities(float xJoystick, float yJoystick, float rotationJoystick, float scale, bool robotOriented)
 {
+    std::vector<float> velocities(3, 0);
+    float x = xJoystick * scale;
+    float y = yJoystick * scale;
+    float rotation = rotationJoystick * scale;
+    if (!robotOriented)
+    {
+        float robotAngleRad = heading * PI / 180.0f;
+        float tempX = x * cos(robotAngleRad) - y * sin(robotAngleRad);
+        float tempY = x * sin(robotAngleRad) + y * cos(robotAngleRad);
+        x = tempX;
+        y = tempY;
+    }
+    velocities[0] = x;
+    velocities[1] = y;
+    velocities[2] = rotation;
+    return velocities;
 }
 void SwerveDrive::drive(std::vector<float> velocities, float driveSpeed)
 {
-    std::array<float, 4> targetAngles = {velocities[2], velocities[2], velocities[2], velocities[2]};
-    std::array<float, 4> driveSpeeds = {driveSpeed, driveSpeed, driveSpeed, driveSpeed};
+    std::array<float, 4> targetAngles;
+    std::array<float, 4> driveSpeeds;
+    for (int i = 0; i < 4; i++)
+    {
+        Vec2f moduleOffset(moduleOffsets[i][0], moduleOffsets[i][1]);
+        Vec2f robotVelocity(velocities[0], velocities[1]);
+        Vec2f OutputVelocity = robotVelocity + velocities[2] * moduleOffset.getPerpendicular();
+        targetAngles[i] = atan2(OutputVelocity.y, OutputVelocity.x) * 180.0f / PI;
+        driveSpeeds[i] = OutputVelocity.distance(Vec2f(0, 0)) * driveSpeed;
+    }
+    float maxWheelSpeed = *std::max_element(driveSpeeds.begin(), driveSpeeds.end());
+    if (maxWheelSpeed > maxSpeed)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            driveSpeeds[i] /= maxWheelSpeed / maxSpeed;
+        }
+    }
     for (int i = 0; i < 4; i++)
     {
         modules[i].driveModule(targetAngles[i], driveSpeeds[i]);
     }
 }
-
-void SwerveDrive::setModuleStates(float targetAngles[4], float driveVelocities[4])
+void SwerveDrive::driveModules(float targetAngles[4], float driveSpeeds[4])
 {
     for (int i = 0; i < 4; i++)
     {
-        modules[i].directDriveModule(targetAngles[i], driveVelocities[i]);
+        modules[i].driveModule(targetAngles[i], driveSpeeds[i]);
+    }
+}
+void SwerveDrive::directDriveModules(float turnSpeeds[4], float driveSpeeds[4])
+{
+    for (int i = 0; i < 4; i++)
+    {
+        modules[i].directDriveModule(turnSpeeds[i], driveSpeeds[i]);
     }
     // TODO: Apply per-module angle/speed states.
 }
@@ -63,7 +115,6 @@ void SwerveDrive::setBrakeMode(bool brake)
     {
         modules[i].setBrakeMode(brake);
     }
-    // TODO: Forward brake mode to each module.
 }
 
 void SwerveDrive::setMaxSpeed(float maxSpeed)
@@ -71,15 +122,9 @@ void SwerveDrive::setMaxSpeed(float maxSpeed)
     this->maxSpeed = maxSpeed;
 }
 
-void SwerveDrive::setIMUScale(float imuAngularScale)
-{
-    this->imuAngularScale = imuAngularScale;
-}
-
 std::array<float, 3> SwerveDrive::getOdeometry()
 {
-    // TODO: Return computed odometry (x, y, heading).
-    return {0.0f, 0.0f, 0.0f};
+    return {xPos, yPos, heading};
 }
 
 void SwerveDrive::resetOdeometry(float x, float y, float angle)
@@ -88,11 +133,19 @@ void SwerveDrive::resetOdeometry(float x, float y, float angle)
     // TODO: Reset odometry state.
 }
 
-void SwerveDrive::swerveDrivePeriodic()
+void SwerveDrive::swerveDrivePeriodic(bool robotEnabled)
 {
     for (int i = 0; i < 4; i++)
     {
         modules[i].updateModuleState();
+        if (robotEnabled)
+        {
+            modules[i].driveMotors();
+        }
+        else
+        {
+            modules[i].stopModule();
+        }
     }
 }
 SwerveDrive SwerveDrive::getDrive()
@@ -108,9 +161,8 @@ SwerveModule::SwerveModule(uint8_t driveMotorPort,
                            float turngearratio,
                            UniversalEncoder *turnEncoder,
                            bool brakeMode,
-                           NoU_Agent *agent,
                            std::array<float, 3> kPID)
-    : driveMotor(NoU_Motor(driveMotorPort)), turnMotor(turnMotor), turnEncoder(turnEncoder), agent(agent)
+    : driveMotor(NoU_Motor(driveMotorPort)), turnMotor(turnMotor), turnEncoder(turnEncoder)
 {
     stockEncoder = true;
     driveGearRatio = drivegearratio;
@@ -131,9 +183,8 @@ SwerveModule::SwerveModule(uint8_t driveMotorPort,
                            float turngearratio,
                            UniversalEncoder *turnEncoder,
                            bool brakeMode,
-                           NoU_Agent *agent,
                            std::array<float, 3> kPID)
-    : driveMotor(NoU_Motor(driveMotorPort)), turnEncoder(turnEncoder), agent(agent)
+    : driveMotor(NoU_Motor(driveMotorPort)), turnEncoder(turnEncoder)
 {
     stockEncoder = false;
     turnMotor = new NoU_Motor(turnMotorPort);
