@@ -1,5 +1,5 @@
 {
-  "name": "MiniSwerveLib",
+  "name": "SingleModuleTest",
   "version": "0.0.1",
   "description": "A swerve drive library for FRC MiniFRC 2026 on NoU3 (ESP32-S3)",
   "keywords": [
@@ -33,14 +33,9 @@
       "name": "Alfredo-NoU3",
       "owner": "alfredosystems",
       "version": "~1.0.12"
-    },
-    {
-      "name": "Adafruit seesaw Library",
-      "owner": "adafruit",
-      "version": "~1.7.9"
     }
   ],
   "headers": [
-    "MiniSwerveLib.h"
+    "SingleModuleTest.h"
   ]
 }

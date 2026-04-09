@@ -1,10 +1,10 @@
-# MiniSwerveLib Documentation
+# SingleModuleTest Documentation
 
-This folder contains the documentation for the `MiniSwerveLib` swerve subsystem library used by the 10583 Stampede MiniFRC 2026 robot code.
+This folder contains the documentation for the `SingleModuleTest` swerve subsystem library used by the 10583 Stampede MiniFRC 2026 robot code.
 
 ## Contents
 
-- [MiniSwerveLib Manual](MiniSwerveLib.md) - complete overview, wiring notes, API reference, and usage example.
+- [SingleModuleTest Manual](SingleModuleTest.md) - complete overview, wiring notes, API reference, and usage example.
 
 ## Current Library Behavior
 

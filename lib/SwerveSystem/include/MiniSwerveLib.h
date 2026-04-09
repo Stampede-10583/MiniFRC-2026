@@ -1,16 +1,18 @@
 #ifndef MiniSwerveLib_h
 #define MiniSwerveLib_h
-#include "Arduino.h"
+#include <Arduino.h>
 #include <array>
 #include <vector>
-#include "Alfredo_NoU3.h"
-#include "Alfredo_NoU3_encoder.h"
-class Adafruit_seesaw;
+#include <functional>
+#include <Alfredo_NoU3.h>
+#include <Alfredo_NoU3_encoder.h>
+#include <QuickPID.h>
+
 class SwerveDrive
 {
 public:
     /**
-     * Construct a swerve drive system and automatically configure the external encoder seesaw.
+     * Construct a swerve drive system.
      *
      * @param driveMotorPorts Drive motor controller ports in module order {FL, FR, BL, BR}.
      * @param driveMotorInversions Per-module drive motor inversion flags. Set so that it is CCW+ (forward) for all modules.
@@ -20,15 +22,12 @@ public:
      * @param turnServoInversions Per-module turn servo inversion flags. Set so that it is CCW+ for all modules.
      * @param turnServoGearRatios Per-module turn gear ratios.
      * @param servoConfig Array containing {servoMinPulse (corresponds to 0°), servoMaxPulse (corresponds to 180°)} PWM bounds for steering servos. Defaults to {540, 2300} which is a common range 9g servo.
-     * @param turnEncoderAndZeroSwitchPorts Per-module seesaw GPIO pin triplet containing {pinA, pinB, ClickPin} for the steering encoder and a switch that is triggered when the modue is at the home position. These are read directly from the external breakout board.
+     * @param turnEncoderAndZeroSwitchPorts Per-module 
      * @param turnEncoderHomePositions Per-module home position values for the steering encoder.
      * @param turnEncoderInversions Per-module turn encoder inversion flags. Set so that it is CCW+ for all modules.
-     * @param encoderSeesaw Initialized seesaw object used to read the external encoder GPIO pins.
-     * The drive assumes the seesaw interrupt line is wired to ESP GPIO 9.
      * @param imuAngularScale Scale factor applied to IMU angular readings.
      * @param maxSpeed Maximum commanded linear speed.
      * @param brakeMode True to enable drive motor braking, false for coast.
-     * @param interruptPin MCU pin wired to the seesaw interrupt output. This will be 8 or 9 on NoU3. Leave empty to disable interrupt (passes -1 internally).
      */
     SwerveDrive(uint8_t driveMotorPorts[4],
                 std::array<bool, 4> driveMotorInversions = {false, false, false, false},
@@ -40,7 +39,6 @@ public:
                 std::array<uint8_t, 4> turnEncoderAndZeroSwitchPorts = {0, 1, 2, 3},
                 std::array<int32_t, 4> turnEncoderHomePositions = {0, 0, 0, 0},
                 std::array<bool, 4> turnEncoderInversions = {false, false, false, false},
-                Adafruit_seesaw *encoderSeesaw,
                 float imuAngularScale,
                 float maxSpeed, 
                 bool brakeMode = false, 
@@ -124,26 +122,12 @@ public:
      */
     void swerveDrivePeriodic();
     /**
-     * Configure the seesaw for encoder operation.
-     *
-     * @param seesaw Pointer to the Adafruit_seesaw instance.
-     * @param interruptPin MCU pin wired to the seesaw interrupt output. This will be 8 or 9 on NoU3. Pass a negative value to disable the interrupt.
-     */
-    static void configureSeesaw(Adafruit_seesaw *seesaw, int8_t interruptPin);
-    /**
-     * Configure the MCU interrupt pin connected to seesaw INT.
-     *
-     * @param interruptPin MCU pin wired to the seesaw interrupt output. Pass a negative value to disable.
-     */
-    static void configureSeesawInterruptPin(int8_t interruptPin);
-    /**
      * Get a pointer to a module by index.
      *
      * @param index Module index in range [0, 3]. 0=FL, 1=FR, 2=BL, 3=BR.
      * @return Pointer to the requested module, or nullptr if index is invalid.
      */
     SwerveModule *getModule(int index);
-
     /**
      * Get a copy of this drive object.
      *
@@ -159,41 +143,73 @@ private:
 class SwerveModule
 {
 public:
+    bool initialized = false;
     /**
-     * Construct a swerve module controller.
+     * FOR NON-BUILT IN TURN ENCODERS Construct a swerve module controller.
      *
-     * @param driveServoPort Port for the drive motor controller.
-     * @param driveMotorInversion True to invert the drive motor direction.
-     * @param turnServoPort Port for the steering servo.
-     * @param turnServoInversion True to invert steering direction.
-     * @param angleoffset Steering zero offset in degrees.
+     * @param driveMotorPort Port on the NoU3 for the drive motor controller.
+     * @param driveMotorInversion Set this so that the drive wheel spins forward when the modules are in the zero position. If applying standard current direction causes the wheel to spin backwards, set this to true.
+     * @param turnMotorPort Port on the NoU3 for the steering motor.
+     * @param turnMotorInversion True to invert steering direction. If applying standard direction of current yeilds in CW rotation of the module, set this to true.
      * @param drivegearratio Drive gear ratio from motor to wheel.
-     * @param turngearratio Steering gear ratio from servo to module.
-     * @param encodergearratio Encoder gear ratio for position feedback.
-     * @param servoConfig Array containing {servoMinPulse (corresponds to 0°), servoMaxPulse (corresponds to 180°)} PWM bounds for steering servos. Defaults to {540, 2300} which is a common range 9g servo.
-     * @param turnEncoderPins Seesaw GPIO pin pair containing {pinA, pinB, ClickPin} for the steering encoder and a switch that is triggered when the modue is at the home position.
-     * These are read directly from the external breakout board.
-     * @param turnEncoderHomePosition The encoder position corresponding to the home position in degrees. This is used to zero the encoder during initialization.
-     * @param turnEncoderInversions Per-module turn encoder inversion flags. Set so that it is CCW+ for all modules.
+     * @param turngearratio Steering gear ratio from motor to module.
+     * @param turnEncoder UniversalEncoder instance for the steering encoder. This is used to allow flexible configuration of the encoder implementation while keeping the module code generic.
      * @param brakeMode True to enable drive motor braking.
+     * @param agent Pointer to the NoU_Agent instance to use for this module. This is used to allow the module to access the IMU data for field-oriented control if desired, and also allows for more flexible configuration of the NoU_Agent instance used by the module.
+     * @param kPID kP, kI, kD, for the module position PID controller (look into PID Controllers for details)
      */
-    SwerveModule(uint8_t driveServoPort,
-                 bool driveMotorInversion = false,
-                 uint8_t turnServoPort,
-                 bool turnServoInversion = false,
-                 float angleoffset,
+    SwerveModule(uint8_t driveMotorPort,
+                 bool driveMotorInversion,
+                 uint8_t turnMotorPort,
+                 bool turnMotorInversion,
                  float drivegearratio,
                  float turngearratio,
-                 float encodergearratio,
-                 std::array<uint16_t, 2> servoConfig = {540, 2300},
-                 uint8_t turnEncoderAndZeroSwitchPort,
-                 int32_t turnEncoderHomePosition,
-                 bool turnEncoderInversion = false,
-                 bool brakeMode = false);
-    
-    void initializeModule();
+                 UniversalEncoder *turnEncoder,
+                 bool brakeMode,
+                NoU_Agent *agent,
+                std::array<float, 3> kPID);
     /**
-     * Drive the module using a robot-relative target angle. Automatically chooses the shortest path to the target angle and reverses drive direction if beneficial.
+     * FOR BUILT IN TURN ENCODERS Construct a swerve module controller.
+     *
+     * @param driveMotorPort Port on the NoU3 for the drive motor controller.
+     * @param driveMotorInversion Set this so that the drive wheel spins forward when the modules are in the zero position. If applying standard current direction causes the wheel to spin backwards, set this to true.
+     * @param turnMotor Steering motor ptr. this allows you to access the encoder for making a custom UniversalEncoder implementation if you are using a built in encoder on the motor, and also allows for more flexible motor controller options for the steering motor.
+     * @param turnMotorInversion True to invert steering direction. If applying standard direction of current yeilds in CW rotation of the module, set this to true.
+     * @param drivegearratio Drive gear ratio from motor to wheel.
+     * @param turngearratio Steering gear ratio from motor to module.
+     * @param turnEncoder UniversalEncoder instance for the steering encoder. This is used to allow flexible configuration of the encoder implementation while keeping the module code generic.
+     * @param brakeMode True to enable drive motor braking.
+     * @param agent Pointer to the NoU_Agent instance to use for this module. This is used to allow the module to access the IMU data for field-oriented control if desired, and also allows for more flexible configuration of the NoU_Agent instance used by the module.
+     * @param kPID kP, kI, kD, for the module position PID controller (look into PID Controllers for details)
+     */
+    SwerveModule(uint8_t driveMotorPort,
+                 bool driveMotorInversion,
+                 NoU_Motor *turnMotor,
+                 bool turnMotorInversion,
+                 float drivegearratio,
+                 float turngearratio,
+                 UniversalEncoder *turnEncoder,
+                 bool brakeMode,
+                NoU_Agent *agent,
+                std::array<float, 3> kPID);
+    /**
+     * Stop the module.
+     */
+    void stopModule() {
+        driveMotor.set(0);
+        turnMotor->set(0);
+    }
+    /**
+     * Initialize the module. This should be called in the setup function of the main program
+     * have been configured, and before any calls to driveModule. This will zero the steering encoder using the configured zero switch and
+     * home position, so it WILL CAUSE THE MODULE TO ROTATE.
+     * @return True if initialized, false if not initialized.
+     * Note that this function will block until the zero switch is triggered, so it should only be called once during setup and not called again during operation.
+     */
+    bool initializeModule();
+    /**
+     * Drive the module using a robot-relative target angle. Automatically chooses the shortest path to the target angle and reverses drive
+     * direction if beneficial.
      *
      * @param targetAngle Desired robot-relative steering angle in degrees. 0 is the current forward direction of the module, positive is CCW.
      * @param driveSpeed Desired non-directional drive scalar speed.
@@ -204,7 +220,8 @@ public:
      * Drive the module using a module-relative target angle. Does not perform any optimization and always drives in the commanded direction.
      *
      * @param targetAngle Desired module-relative steering angle in degrees.
-     * @param driveVelocity Desired directional drive velocity command. Positive values correspond to the "forward" direction of the module, and negative values correspond to the "reverse" direction of the module, regardless of the actual steering angle.
+     * @param driveVelocity Desired directional drive velocity command. Positive values correspond to the "forward" direction of the module,
+     *  and negative values correspond to the "reverse" direction of the module, regardless of the actual steering angle.
      */
     void directDriveModule(float targetAngle, float driveVelocity);
 
@@ -233,6 +250,10 @@ public:
      */
     void updateModuleState();
     /**
+     * Run in loop whenever the bot is "Enabled" i.e. whenever you wish for it to move
+     */
+    void driveMotors();
+    /**
      * Get direct access to the drive motor object.
      *
      * @return Pointer to the internal drive motor (never nullptr).
@@ -240,75 +261,70 @@ public:
     NoU_Motor *getDriveMotor();
 
     /**
-     * Get direct access to the steering servo object.
+     * Get direct access to the steering motor object.
      *
-     * @return Pointer to the internal steering servo (never nullptr).
+     * @return Pointer to the internal steering motor (never nullptr).
      */
-    NoU_Servo *getTurnServo();
+    NoU_Motor *getTurnMotor();
     /**
      * Get direct access to the steering encoder object.
      *
      * @return Pointer to the internal steering encoder (never nullptr).
      */
-    QuicEncoder *getTurnEncoder();
+    UniversalEncoder *getTurnEncoder();
     /**
      * Get a copy of this module object.
      *
      * @return Copy of the current SwerveModule instance.
      */
     SwerveModule getModule();
+    /**
+     * Get a pointer to the Quick_PID object that is in use
+     * @returns Pointer to Quick_PID object
+     */
+    QuickPID *getPIDController();
 
 private:
+    NoU_Agent *agent;
     NoU_Motor driveMotor;
-    NoU_Servo turnServo;
-    QuicEncoder turnEncoder;
-    float angleOffset;
-    float driveGearRatio;
-    float turnGearRatio;
-    float encoderGearRatio;
-    float currentSpeed;
-    uint8_t encoderPinA, encoderPinB, zeroSwitchPin;
-    int32_t currentAngle, encoderHomePosition;
-    bool turnInversion;
+    NoU_Motor *turnMotor;
+    UniversalEncoder *turnEncoder;
+    QuickPID posPIDController;
+    float driveGearRatio, turnGearRatio, currentSpeed, currentAngle, PIDInput, turnOutput, PIDSetpoint, driveSetpoint;
+    bool turnInversion, driveInversion, stockEncoder;
 };
-class QuicEncoder
+class UniversalEncoder
 {
 public:
     /**
-     * Construct a quadrature encoder reader that pulls pin state from the configured input source.
-     *
-     * @param pinA The first encoder channel. In seesaw mode, this is the seesaw GPIO pin number.
-     * @param pinB The second encoder channel. In seesaw mode, this is the seesaw GPIO pin number.
-     * @param inverted Whether to invert the encoder direction. Set so that it is CCW+ for correct modules.
+     * Constructor for RELATIVE ENCODERS. Note that all Lambdas that deal with angles should take/return in a float of angles in degrees with CCW+. All gear ratios, inversions, and CPR conversions should be done by YOU before returning a value. See the docs for an example for a NoU3 Encoder
+     *    @param getPositionFunc Function to get the current encoder position. as a float in degrees. This should account for any necessary
+     *  gear ratios, offsets, and inversions to return the actual module angle.
+     *    @param setPositionFunc Function to set the encoder position. This is used to zero the encoder during initialization by setting the
+     *  current position to the known home position. It should accept a float in degrees and convert it to the appropriate units for the
+     * underlying encoder implementation.
+     *    @param updateFunc Function to update the encoder state. This is called periodically to update the internal state of the encoder. Do nothing if unnecesary
+     *    @param zeroSwitchSupplier Function that returns true when the encoder's zero switch is triggered. This is used during initialization
+     *  to find the zero position of the module. It should return a boolean indicating whether the zero switch is currently active.
+     *    @param homePosition The angle in degrees CCW+ (see docs for info) of the MODULE when the zero switch is closed.
      */
-    QuicEncoder(uint8_t pinA, uint8_t pinB, bool inverted = false);
+    UniversalEncoder(bool isAbsolute, std::function<float()> getPositionFunc, std::function<void()> updateFunc, std::function<void(float)> setPositionFunc, std::function<bool()> zeroSwitchSupplier, float homePosition);
     /**
-     * Initialize the encoder. The encoder uses the globally configured seesaw and interrupt line
-     * when those are set before construction.
+     * Constructor for ABSOLUTE ENCODERS. Note that getPosition() should return in a float of angles in degrees with CCW+. All gear ratios, inversions, and CPR conversions should be done by YOU before returning a value. See the docs for an psuedocode example.
+     *    @param getPositionFunc Function to get the current encoder position. as a float in degrees. This should account for any necessary
+     *  gear ratios, offsets, and inversions to return the actual module angle.
+     *    @param updateFunc Function to update the encoder state. This is called periodically to update the internal state of the encoder. Do nothing if unnecesary
      */
-    void initialize();
-    /**
-     * Get the current position of the encoder.
-     *
-     * @return Current encoder position.
-     */
-    int32_t getPosition();
-    /**
-     * Reset the encoder position.
-     *
-     * @param newPosition The new position to set. Defaults to 0 if not specified.
-     */
-    void resetPosition(int32_t newPosition = 0);
-    /**
-     * Update the encoder state using the current GPIO values and the existing quadrature transition table.
-     * This is the same decode path used for direct pins and seesaw-backed pins.
-     */
-    void update();
+    UniversalEncoder(std::function<float()> getPositionFunc, std::function<void()> updateFunc);
 
+    std::function<float()> getPosition;
+    std::function<void(float)> setPosition;
+    std::function<void()> update;
+    std::function<bool()> zeroSwitch;
+    float homePosition;
 private:
-    uint8_t pinA, pinB;
-    bool inverted;
-    volatile uint8_t prevState;
-    volatile int32_t position;
+    bool isAbsolute;
+    bool isStockEncoder; // for stock encoders, we can assume certain things about the behavior of the zero switch and the setPosition function, which allows us to simplify the initialization process in the module code. This should be set to true if using a stock encoder with a known zeroing procedure, and false if using a custom encoder implementation.
+
 };
 #endif
