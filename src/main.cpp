@@ -3,17 +3,18 @@
 #include <MiniSwerveLib.h>
 bool robotEnabled = false;
 bool firstLoop = true;
-// This creates the drivetrain object, you shouldn't have to mess with this
-
-// The gyroscope sensor is by default precise, but not accurate. This is fixable by adjusting the angular scale factor.
-// Tuning procedure:
-// Rotate the robot in place exactly 5 times. Use the Serial printout to read the current gyro angle in Radians, we will call this "measured_angle".
-// measured_angle should be nearly 31.416 which is 5*2*pi. Update measured_angle below to complete the tuning process.
-//  float measured_angle = 31.416;
-//  float angular_scale = (5.0*2.0*PI) / measured_angle;
+float measured_angle = 27.63;
+float angular_scale = (5.0*2.0*PI) / measured_angle;
 SwerveModule *swerveModule = nullptr;
 NoU_Motor turnMotor(4);
-bool telemetryEnabled = true;
+//gets yaw as degrees
+float getYawDeg() {
+    return NoU3.yaw * angular_scale * (180.0f / PI);
+}
+//gets yaw as Radians
+float getYawRad() {
+    return NoU3.yaw * angular_scale;
+}
 float getTurnAngleDegrees()
 {
     int32_t pos = turnMotor.getPosition();
@@ -71,12 +72,13 @@ void loop()
     {
         if (robotEnabled)
         {
-            if (PestoLink.buttonHeld(13) && !swerveModule->initialized)
+            if (PestoLink.buttonHeld(13) /*&& !swerveModule->initialized*/)
             {
-                while (!swerveModule->initialized)
-                {
-                    swerveModule->initializeModule();
-                }
+                PestoLink.printTerminal(String(getYawDeg()).c_str());
+                // while (!swerveModule->initialized)
+                // {
+                //     swerveModule->initializeModule();
+                // }
             }
             if (PestoLink.buttonHeld(8))
             {
