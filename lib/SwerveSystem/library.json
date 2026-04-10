@@ -31,13 +31,13 @@
     },
     {
       "name": "QuickPID",
-      "owner": "tekdemo",
+      "owner": "dlloydev",
       "version": "~3.1.9"
     },
     {
       "name": "VectorXf",
       "owner": "hideakitai",
-      "version": "~0.4.3"
+      "version": "~0.1.0"
     }
   ],
   "headers": [
